@@ -4,6 +4,7 @@ import random
 import pandas as pd
 import torch
 
+import os
 
 class DataLoaderBase:
 
@@ -69,6 +70,43 @@ class DataLoader(DataLoaderBase):
         # NOTE! I strongly suggest that you create multiple functions for taking care
         # of the parsing needed here. Avoid create a huge block of code here and try instead to 
         # identify the seperate functions needed.
+        data_df_cols = ["sentence_id", "token_id", "char_start_id", "char_end_id", "split"]
+        data_df_rows = []
+
+        ner_df_cols = ["sentence_id", "ner_id", "char_start_id", "char_end_id"]
+        ner_df_rows = []
+
+        token_id = 0
+
+        path = data_dir
+        dir = [['TRAIN','*/*/*.xml'],['TEST','*/*/*/*.xml']]
+        for dir in dir:
+            #print (dir[0],dir[1])
+            for file in glob.iglob(os.path.join(path, dir[1])):
+                with open(file) as f:
+                    #print(file)
+                    xtree = et.parse(f)
+                    xroot = xtree.getroot()
+
+                for senten in xroot: 
+                    sentence_id = senten.attrib.get("id")
+                    ner_id=0
+
+                    for node in senten:
+                        if node.attrib.get("type") == "drug":
+                            charOffset = node.attrib.get("charOffset").split("-")
+                    #char_start_id = node.find("charOffset").text if node is not None else None
+                            data_df_rows.append({"sentence_id": sentence_id, "token_id": token_id, 
+                                        "char_start_id": charOffset[0], "char_end_id": charOffset[1],
+                                        "split": dir[0]})
+                            ner_df_rows.append({"sentence_id": sentence_id, "ner_id": ner_id, 
+                                        "char_start_id": charOffset[0], "char_end_id": charOffset[1],
+                                        })
+                            ner_id += 1
+                            token_id += 1
+
+        data_df = pd.DataFrame(data_df_rows, columns = data_df_cols)
+        ner_df = pd.DataFrame(ner_df_rows, columns = ner_df_cols)
         pass
 
 
