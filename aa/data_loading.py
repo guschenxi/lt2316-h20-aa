@@ -3,6 +3,9 @@
 import random
 import pandas as pd
 import torch
+import glob
+import xml.etree.ElementTree as et
+import numpy as np
 
 import os
 
@@ -76,37 +79,59 @@ class DataLoader(DataLoaderBase):
         ner_df_cols = ["sentence_id", "ner_id", "char_start_id", "char_end_id"]
         ner_df_rows = []
 
-        token_id = 0
+        token_dict={}
+        ner_dict={'drug': 1, 'group': 2, 'brand': 3, 'drug_n': 4}
 
-        path = data_dir
-        dir = [['TRAIN','*/*/*.xml'],['TEST','*/*/*/*.xml']]
-        for dir in dir:
-            #print (dir[0],dir[1])
-            for file in glob.iglob(os.path.join(path, dir[1])):
+        #path= "/home/sven/lt2316-h20-aa/DDICorpus"
+        path=[['TRAIN','*/*/*.xml'],['TEST','*/Test for DrugNER task/*/*.xml']]
+        for path in path:
+            for file in glob.iglob(os.path.join(data_dir, path[1])):
                 with open(file) as f:
-                    #print(file)
                     xtree = et.parse(f)
                     xroot = xtree.getroot()
 
                 for senten in xroot: 
                     sentence_id = senten.attrib.get("id")
-                    ner_id=0
+                    #print(sentence_id)
+                    sentence = senten.attrib.get("text")
+                    for token in sentence.split():
+                        #print (token)
+                        if token not in token_dict:
+                            token_dict[token]=len(token_dict)
+                        token_id = token_dict[token]
+                        char_start_id = sentence.find(token)
+                        data_df_rows.append({"sentence_id": sentence_id, "token_id": token_id, 
+                                    "char_start_id": char_start_id, "char_end_id": char_start_id+len(token),
+                                    "split": dir[0]})
 
                     for node in senten:
-                        if node.attrib.get("type") == "drug":
-                            charOffset = node.attrib.get("charOffset").split("-")
-                    #char_start_id = node.find("charOffset").text if node is not None else None
-                            data_df_rows.append({"sentence_id": sentence_id, "token_id": token_id, 
-                                        "char_start_id": charOffset[0], "char_end_id": charOffset[1],
-                                        "split": dir[0]})
-                            ner_df_rows.append({"sentence_id": sentence_id, "ner_id": ner_id, 
+                        if node.tag == 'entity':
+                            type_name = node.attrib.get("type")
+                            if type_name in ner_dict: ner_id = ner_dict[type_name]
+                            else: ner_id = 0
+                            entity_name = node.attrib.get("text")
+                            #print(entity_name)
+                            #ner_id = ner_dict[type_name]
+                            if len(entity_name.split(" ")) == 1:
+                                ner_id = ner_dict[node.attrib.get("type")]
+                                charOffset = node.attrib.get("charOffset").split("-")
+                                ner_df_rows.append({"sentence_id": sentence_id, "ner_id": ner_id, 
                                         "char_start_id": charOffset[0], "char_end_id": charOffset[1],
                                         })
-                            ner_id += 1
-                            token_id += 1
+                            else:
+                                for token in entity_name.split(" "):
+                                    ner_id = ner_dict[node.attrib.get("type")]
+                                    char_start_id = entity_name.find(token)
+                                    ner_df_rows.append({"sentence_id": sentence_id, "ner_id": ner_id, 
+                                        "char_start_id": char_start_id, "char_end_id": char_start_id + len(token),
+                                        })
 
-        data_df = pd.DataFrame(data_df_rows, columns = data_df_cols)
-        ner_df = pd.DataFrame(ner_df_rows, columns = ner_df_cols)
+        self.data_df = pd.DataFrame(data_df_rows, columns = data_df_cols)
+        self.ner_df = pd.DataFrame(ner_df_rows, columns = ner_df_cols)
+        train_index = self.data_df[self.data_df["split"] == "TRAIN"].index
+        val_index = np.random.choice(train_index, size = int(len(train_index) * 0.3))
+        for i in val_index:
+            self.data_df.at[i,"split"] = "VAL"
         pass
 
 
@@ -115,6 +140,7 @@ class DataLoader(DataLoaderBase):
         # the tensors should have the following following dimensions:
         # (NUMBER_SAMPLES, MAX_SAMPLE_LENGTH)
         # NOTE! the labels for each split should be on the GPU
+        return
 
 
     def plot_split_ner_distribution(self):
