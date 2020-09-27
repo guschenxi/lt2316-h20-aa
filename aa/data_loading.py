@@ -79,10 +79,10 @@ class DataLoader(DataLoaderBase):
         ner_df_cols = ["sentence_id", "ner_id", "char_start_id", "char_end_id"]
         ner_df_rows = []
 
-        token_dict={}
-        ner_dict={'drug': 1, 'group': 2, 'brand': 3, 'drug_n': 4}
+        vocab={}
+        ner_dict={'O': 0, 'drug': 1, 'group': 2, 'brand': 3, 'drug_n': 4}
 
-        #path= "/home/sven/lt2316-h20-aa/DDICorpus"
+        #parse xml
         path=[['TRAIN','*/*/*.xml'],['TEST','*/Test for DrugNER task/*/*.xml']]
         for path in path:
             for file in glob.iglob(os.path.join(data_dir, path[1])):
@@ -90,19 +90,17 @@ class DataLoader(DataLoaderBase):
                     xtree = et.parse(f)
                     xroot = xtree.getroot()
 
-                for senten in xroot: 
+                for senten in xroot:
                     sentence_id = senten.attrib.get("id")
-                    #print(sentence_id)
                     sentence = senten.attrib.get("text")
-                    for token in sentence.split():
-                        #print (token)
-                        if token not in token_dict:
-                            token_dict[token]=len(token_dict)
-                        token_id = token_dict[token]
-                        char_start_id = sentence.find(token)
+                    for token in sentence.lower().rstrip().split():
+                        if token not in vocab:
+                            vocab[token]=len(vocab)
+                        token_id = vocab[token]
+                        char_start_id = sentence.lower().find(token)
                         data_df_rows.append({"sentence_id": sentence_id, "token_id": token_id, 
                                     "char_start_id": char_start_id, "char_end_id": char_start_id+len(token),
-                                    "split": dir[0]})
+                                    "split": path[0]})
 
                     for node in senten:
                         if node.tag == 'entity':
@@ -110,15 +108,16 @@ class DataLoader(DataLoaderBase):
                             if type_name in ner_dict: ner_id = ner_dict[type_name]
                             else: ner_id = 0
                             entity_name = node.attrib.get("text")
-                            #print(entity_name)
-                            #ner_id = ner_dict[type_name]
                             if len(entity_name.split(" ")) == 1:
                                 ner_id = ner_dict[node.attrib.get("type")]
-                                charOffset = node.attrib.get("charOffset").split("-")
+                                if ';' in node.attrib.get("charOffset"): # Deal with special format in Train/DrugBank/Eszopiclone_ddi.xml
+                                    charOffset = [entity_name.find(token), entity_name.find(token) + len(token)]
+                                else:
+                                    charOffset = node.attrib.get("charOffset").split("-")
                                 ner_df_rows.append({"sentence_id": sentence_id, "ner_id": ner_id, 
-                                        "char_start_id": charOffset[0], "char_end_id": charOffset[1],
+                                        "char_start_id": int(charOffset[0]), "char_end_id": int(charOffset[1]),
                                         })
-                            else:
+                            else: #entity name consists of more than one word
                                 for token in entity_name.split(" "):
                                     ner_id = ner_dict[node.attrib.get("type")]
                                     char_start_id = entity_name.find(token)
@@ -126,12 +125,58 @@ class DataLoader(DataLoaderBase):
                                         "char_start_id": char_start_id, "char_end_id": char_start_id + len(token),
                                         })
 
+        #create dataframe
         self.data_df = pd.DataFrame(data_df_rows, columns = data_df_cols)
         self.ner_df = pd.DataFrame(ner_df_rows, columns = ner_df_cols)
         train_index = self.data_df[self.data_df["split"] == "TRAIN"].index
+        
+        #divide VAL
         val_index = np.random.choice(train_index, size = int(len(train_index) * 0.3))
         for i in val_index:
             self.data_df.at[i,"split"] = "VAL"
+        
+        self.id2word={value : key for (key, value) in vocab.items()}
+        self.id2ner={value : key for (key, value) in ner_dict.items()}
+        self.vocab=[[key,value] for key, value in vocab.items()]
+        
+        
+        #create X and Y data
+        self.train_sentences= []
+        self.train_labels= []
+        self.val_sentences= []
+        self.val_labels= []
+        self.test_sentences= []
+        self.test_labels= []
+        for sen_id in list(self.data_df["sentence_id"].unique()):
+            s_tokens = self.data_df[self.data_df["sentence_id"]==sen_id]
+            s_ners = self.ner_df[self.ner_df["sentence_id"]==sen_id]
+            #s = [item["token_id"] for item in s_tokens]
+            sentence=[]
+            label = []
+            for i,t_row in s_tokens.iterrows():
+                sentence.append(t_row["token_id"])
+                is_ner = False
+                for i, l_row in s_ners.iterrows():
+                     if t_row["char_start_id"] >= l_row["char_start_id"] and t_row["char_start_id"] <= l_row["char_end_id"]:
+                        label.append(l_row["ner_id"])
+                        is_ner = True
+                if not is_ner:
+                    label.append(0)
+
+            for index, row in s_tokens.iterrows():
+                if row["split"] == "TRAIN":
+                    self.train_labels.append(label)
+                    self.train_sentences.append(sentence)
+                elif row["split"] == "VAL":
+                    self.val_labels.append(label)
+                    self.val_sentences.append(sentence)
+                elif row["split"] == "TEST":
+                    self.test_labels.append(label)
+                    self.test_sentences.append(sentence)
+        a=max([len(i) for i in self.train_sentences])
+        b=max([len(i) for i in self.val_sentences])
+        c=max([len(i) for i in self.test_sentences])
+        self.max_sample_length = max([a,b,c])
         pass
 
 
@@ -140,11 +185,25 @@ class DataLoader(DataLoaderBase):
         # the tensors should have the following following dimensions:
         # (NUMBER_SAMPLES, MAX_SAMPLE_LENGTH)
         # NOTE! the labels for each split should be on the GPU
-        return
+        train_labels = -1*np.ones((len(self.train_labels), self.max_sample_length))
+        for j in range(len(self.train_labels)):
+            cur_len = len(self.train_labels[j])
+            train_labels[j][:cur_len] = self.train_labels[j]
+        val_labels = -1*np.ones((len(self.val_labels), self.max_sample_length))
+        for j in range(len(self.val_labels)):
+            cur_len = len(self.val_labels[j])
+            val_labels[j][:cur_len] = self.val_labels[j]
+        test_labels = -1*np.ones((len(self.test_labels), self.max_sample_length))
+        for j in range(len(self.test_labels)):
+            cur_len = len(self.test_lables[j])
+            test_labels[j][:cur_len] = self.test_labels[j]
+        output = torch.LongTensor([train_labels,val_labels,test_labels]).to(device)
+        return output
 
 
     def plot_split_ner_distribution(self):
         # should plot a histogram displaying ner label counts for each split
+        
         pass
 
 
