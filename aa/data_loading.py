@@ -256,17 +256,16 @@ class DataLoader(DataLoaderBase):
         Ner_count_val = [sum(y>0 for y in x) for x in zip(*self.val_labels)]
         Ner_count_test = [sum(y>0 for y in x) for x in zip(*self.test_labels)]
         
-        x=Ner_count_train + Ner_count_val + Ner_count_test
+        x = Ner_count_train + Ner_count_val + Ner_count_test
         pd.Series(x).value_counts().hist()
         counts,values = pd.Series(x).value_counts().values, pd.Series(x).value_counts().index
         df_results = pd.DataFrame(list(zip(values,counts)),columns=["value","count"])
-        df_results.hist()
         fig,ax = plt.subplots(1,1)
         ax.set_title("distribution of number of NERs in sentences")
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        plt.hist(x)
-        plt.show()
+        #plt.hist(x)
+        #plt.show()
         pass
 
 
