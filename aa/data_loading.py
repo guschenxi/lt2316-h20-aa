@@ -189,7 +189,7 @@ class DataLoader(DataLoaderBase):
         b=max([len(i) for i in self.val_sentences])
         c=max([len(i) for i in self.test_sentences])
         self.max_sample_length = max([a,b,c])
-        print ("self.max_sample_length",a,b,c,self.max_sample_length)
+        #print ("self.max_sample_length",a,b,c,self.max_sample_length)
         pass
 
 
@@ -199,43 +199,29 @@ class DataLoader(DataLoaderBase):
         # (NUMBER_SAMPLES, MAX_SAMPLE_LENGTH)
         # NOTE! the labels for each split should be on the GPU
         
-        #OLD
-        '''
-        train_labels = -1*np.ones((len(self.train_labels), self.max_sample_length))
-        for j in range(len(self.train_labels)):
-            cur_len = len(self.train_labels[j])
-            train_labels[j][:cur_len] = self.train_labels[j]
-        val_labels = -1*np.ones((len(self.val_labels), self.max_sample_length))
-        for j in range(len(self.val_labels)):
-            cur_len = len(self.val_labels[j])
-            val_labels[j][:cur_len] = self.val_labels[j]
-        test_labels = -1*np.ones((len(self.test_labels), self.max_sample_length))
-        for j in range(len(self.test_labels)):
-            cur_len = len(self.test_lables[j])
-            test_labels[j][:cur_len] = self.test_labels[j]
-        output = torch.LongTensor([train_labels,val_labels,test_labels]).to(device)
-        '''
         
-        #NEW
-        train_labels_tensor=torch.Tensor(torch.nn.functional.pad(self.train_labels, pad=(0, self.max_sample_length - len(self.train_labels)), mode='constant', value=-1))
-        val_labels_tensor=torch.Tensor(torch.nn.functional.pad(self.val_labels, pad=(0, self.max_sample_length - len(self.val_labels)), mode='constant', value=-1))
-        test_labels_tensor=torch.Tensor(torch.nn.functional.pad(self.test_labels, pad=(0, self.max_sample_length - len(self.test_labels)), mode='constant', value=-1))
-        output_data=torch.cat((train_labels_tensor, val_labels_tensor, test_labels_tensor),1)
-        output_data=torch.stack(data)
+        #OLD why not working?
+        #[x.extend((self.max_sample_length-len(x))*[-1]) for x in self.train_labels]
+        #[x.extend((self.max_sample_length-len(x))*[-1]) for x in self.val_labels]
+        #[x.extend((self.max_sample_length-len(x))*[-1]) for x in self.test_labels]
+        x=[(i + [-1] * self.max_sample_length)[:self.max_sample_length] for i in self.train_labels]
+        y=[(i + [-1] * self.max_sample_length)[:self.max_sample_length] for i in self.val_labels]
+        z=[(i + [-1] * self.max_sample_length)[:self.max_sample_length] for i in self.test_labels]
+        train_labels_tensor=torch.Tensor(x).to(device=self.device)
+        val_labels_tensor=torch.Tensor(y).to(device=self.device)
+        test_labels_tensor=torch.Tensor(z).to(device=self.device)
+        output_data=[train_labels_tensor, val_labels_tensor, test_labels_tensor]
         return output_data
 
 
     def plot_split_ner_distribution(self):
         # should plot a histogram displaying ner label counts for each split
         ner_counts_train = sum([sum(y>0 for y in x) for x in zip(*self.train_labels)])
-        print ("ner_counts_train", ner_counts_train)
         ner_counts_val = sum([sum(y>0 for y in x) for x in zip(*self.val_labels)])
-        print ("ner_counts_val", ner_counts_val)
         ner_counts_test = sum([sum(y>0 for y in x) for x in zip(*self.test_labels)])
-        print ("ner_counts_test", ner_counts_test)
-        
+
         x=[ner_counts_train, ner_counts_val, ner_counts_test]
-        print(x)
+        #print(x)
         fig,ax = plt.subplots(1,1)
         ax.set_title("NER label counts for each split")
         ax.set_xlabel('Splits')
@@ -249,14 +235,10 @@ class DataLoader(DataLoaderBase):
         # FOR BONUS PART!!
         # Should plot a histogram displaying the distribution of sample lengths in number tokens
         length_train = [len(x) for x in self.train_labels]
-        print ("length_train", length_train)
         length_val = [len(x) for x in self.val_labels]
-        print ("length_val", length_val)
         length_test = [len(x) for x in self.test_labels]
-        print ("length_test", length_test)
         
         x=length_train + length_val + length_test
-        print(x)
         fig,ax = plt.subplots(1,1)
         ax.set_title("distribution of sample lengths")
         ax.set_xlabel('x')
@@ -271,23 +253,20 @@ class DataLoader(DataLoaderBase):
         # Should plot a histogram displaying the distribution of number of NERs in sentences
         # e.g. how many sentences has 1 ner, 2 ner and so on
         Ner_count_train = [sum(y>0 for y in x) for x in zip(*self.train_labels)]
-        print ("Ner_count_train", Ner_count_train)
         Ner_count_val = [sum(y>0 for y in x) for x in zip(*self.val_labels)]
-        print ("Ner_count_val", Ner_count_val)
         Ner_count_test = [sum(y>0 for y in x) for x in zip(*self.test_labels)]
-        print ("Ner_count_test", Ner_count_test) 
         
         x=Ner_count_train + Ner_count_val + Ner_count_test
-        print(x)
+        pd.Series(x).value_counts().hist()
         counts,values = pd.Series(x).value_counts().values, pd.Series(x).value_counts().index
         df_results = pd.DataFrame(list(zip(values,counts)),columns=["value","count"])
+        df_results.hist()
         fig,ax = plt.subplots(1,1)
         ax.set_title("distribution of number of NERs in sentences")
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         plt.hist(x)
         plt.show()
-        pass
         pass
 
 
