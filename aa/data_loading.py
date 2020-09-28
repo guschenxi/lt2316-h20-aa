@@ -6,6 +6,8 @@ import torch
 import glob
 import xml.etree.ElementTree as et
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 import os
 
@@ -143,7 +145,7 @@ class DataLoader(DataLoaderBase):
         train_ids=train_set["sentence_id"].unique()
         val_ids = np.random.choice(train_ids, size = int(len(train_ids) * 0.3))
         for ids in val_ids:
-            self.data_df[(self.data_df['sentence_id'] == ids),'split'] = 'VAL'
+            self.data_df.loc[(self.data_df['sentence_id'] == ids),'split'] = 'VAL'
         
         self.id2word={value : key for (key, value) in vocab.items()}
         self.id2ner={value : key for (key, value) in ner_dict.items()}
@@ -172,21 +174,8 @@ class DataLoader(DataLoaderBase):
                 if not is_ner:
                     label.append(0)
 
-            #Split OLD 
-'''
-            for index, row in s_tokens.iterrows():
-                if row["split"] == "TRAIN":
-                    self.train_labels.append(label)
-                    self.train_sentences.append(sentence)
-                elif row["split"] == "VAL":
-                    self.val_labels.append(label)
-                    self.val_sentences.append(sentence)
-                elif row["split"] == "TEST":
-                    self.test_labels.append(label)
-                    self.test_sentences.append(sentence)
-'''
               #Split NEW
-            split=s_tokens[0]['split']
+            split=s_tokens['split'].unique().tolist()[0]
             if split == "TRAIN":
                 self.train_labels.append(label)
                 self.train_sentences.append(sentence)
@@ -200,6 +189,7 @@ class DataLoader(DataLoaderBase):
         b=max([len(i) for i in self.val_sentences])
         c=max([len(i) for i in self.test_sentences])
         self.max_sample_length = max([a,b,c])
+        print ("self.max_sample_length",a,b,c,self.max_sample_length)
         pass
 
 
@@ -227,12 +217,10 @@ class DataLoader(DataLoaderBase):
         '''
         
         #NEW
-        train_labels_tensor=torch.Tensor(self.train_labels)
-        val_labels_tensor=torch.Tensor(self.val_labels)
-        test_labels_tensor=torch.Tensor(self.test_labels)
-        output_data=[train_labels_tensor, val_labels_tensor, test_labels_tensor]
-        max_len=max([x.squeeze().numel() for x in data])
-        output_data = [torch.nn.functional.pad(x, pad=(0, max_len - x.numel()), mode='constant', value=-1) for x in data]
+        train_labels_tensor=torch.Tensor(torch.nn.functional.pad(self.train_labels, pad=(0, self.max_sample_length - len(self.train_labels)), mode='constant', value=-1))
+        val_labels_tensor=torch.Tensor(torch.nn.functional.pad(self.val_labels, pad=(0, self.max_sample_length - len(self.val_labels)), mode='constant', value=-1))
+        test_labels_tensor=torch.Tensor(torch.nn.functional.pad(self.test_labels, pad=(0, self.max_sample_length - len(self.test_labels)), mode='constant', value=-1))
+        output_data=torch.cat((train_labels_tensor, val_labels_tensor, test_labels_tensor),1)
         output_data=torch.stack(data)
         return output_data
 
@@ -247,6 +235,7 @@ class DataLoader(DataLoaderBase):
         print ("ner_counts_test", ner_counts_test)
         
         x=[ner_counts_train, ner_counts_val, ner_counts_test]
+        print(x)
         fig,ax = plt.subplots(1,1)
         ax.set_title("NER label counts for each split")
         ax.set_xlabel('Splits')
@@ -262,11 +251,12 @@ class DataLoader(DataLoaderBase):
         length_train = [len(x) for x in self.train_labels]
         print ("length_train", length_train)
         length_val = [len(x) for x in self.val_labels]
-        print ("ner_counts_val", ner_counts_val)
+        print ("length_val", length_val)
         length_test = [len(x) for x in self.test_labels]
         print ("length_test", length_test)
         
         x=length_train + length_val + length_test
+        print(x)
         fig,ax = plt.subplots(1,1)
         ax.set_title("distribution of sample lengths")
         ax.set_xlabel('x')
@@ -288,6 +278,7 @@ class DataLoader(DataLoaderBase):
         print ("Ner_count_test", Ner_count_test) 
         
         x=Ner_count_train + Ner_count_val + Ner_count_test
+        print(x)
         counts,values = pd.Series(x).value_counts().values, pd.Series(x).value_counts().index
         df_results = pd.DataFrame(list(zip(values,counts)),columns=["value","count"])
         fig,ax = plt.subplots(1,1)
