@@ -128,12 +128,22 @@ class DataLoader(DataLoaderBase):
         #create dataframe
         self.data_df = pd.DataFrame(data_df_rows, columns = data_df_cols)
         self.ner_df = pd.DataFrame(ner_df_rows, columns = ner_df_cols)
-        train_index = self.data_df[self.data_df["split"] == "TRAIN"].index
         
-        #divide VAL
+        
+        #divide VAL OLD
+        '''
+        train_index = self.data_df[self.data_df["split"] == "TRAIN"].index
         val_index = np.random.choice(train_index, size = int(len(train_index) * 0.3))
         for i in val_index:
             self.data_df.at[i,"split"] = "VAL"
+        '''
+            
+        #divide VAL NEW
+        train_set=self.data_df[self.data_df["split"]=="TRAIN"]
+        train_ids=train_set["sentence_id"].unique()
+        val_ids = np.random.choice(train_ids, size = int(len(train_ids) * 0.3))
+        for ids in val_ids:
+            self.data_df[(self.data_df['sentence_id'] == ids),'split'] = 'VAL'
         
         self.id2word={value : key for (key, value) in vocab.items()}
         self.id2ner={value : key for (key, value) in ner_dict.items()}
@@ -150,19 +160,20 @@ class DataLoader(DataLoaderBase):
         for sen_id in list(self.data_df["sentence_id"].unique()):
             s_tokens = self.data_df[self.data_df["sentence_id"]==sen_id]
             s_ners = self.ner_df[self.ner_df["sentence_id"]==sen_id]
-            #s = [item["token_id"] for item in s_tokens]
             sentence=[]
             label = []
             for i,t_row in s_tokens.iterrows():
                 sentence.append(t_row["token_id"])
                 is_ner = False
                 for i, l_row in s_ners.iterrows():
-                     if t_row["char_start_id"] >= l_row["char_start_id"] and t_row["char_start_id"] <= l_row["char_end_id"]:
+                    if t_row["char_start_id"] >= l_row["char_start_id"] and t_row["char_start_id"] <= l_row["char_end_id"]:
                         label.append(l_row["ner_id"])
                         is_ner = True
                 if not is_ner:
                     label.append(0)
 
+            #Split OLD 
+'''
             for index, row in s_tokens.iterrows():
                 if row["split"] == "TRAIN":
                     self.train_labels.append(label)
@@ -173,6 +184,18 @@ class DataLoader(DataLoaderBase):
                 elif row["split"] == "TEST":
                     self.test_labels.append(label)
                     self.test_sentences.append(sentence)
+'''
+              #Split NEW
+            split=s_tokens[0]['split']
+            if split == "TRAIN":
+                self.train_labels.append(label)
+                self.train_sentences.append(sentence)
+            elif split == "VAL":
+                self.val_labels.append(label)
+                self.val_sentences.append(sentence)
+            elif split == "TEST":
+                self.test_labels.append(label)
+                self.test_sentences.append(sentence)
         a=max([len(i) for i in self.train_sentences])
         b=max([len(i) for i in self.val_sentences])
         c=max([len(i) for i in self.test_sentences])
@@ -185,6 +208,9 @@ class DataLoader(DataLoaderBase):
         # the tensors should have the following following dimensions:
         # (NUMBER_SAMPLES, MAX_SAMPLE_LENGTH)
         # NOTE! the labels for each split should be on the GPU
+        
+        #OLD
+        '''
         train_labels = -1*np.ones((len(self.train_labels), self.max_sample_length))
         for j in range(len(self.train_labels)):
             cur_len = len(self.train_labels[j])
@@ -198,18 +224,55 @@ class DataLoader(DataLoaderBase):
             cur_len = len(self.test_lables[j])
             test_labels[j][:cur_len] = self.test_labels[j]
         output = torch.LongTensor([train_labels,val_labels,test_labels]).to(device)
-        return output
+        '''
+        
+        #NEW
+        train_labels_tensor=torch.Tensor(self.train_labels)
+        val_labels_tensor=torch.Tensor(self.val_labels)
+        test_labels_tensor=torch.Tensor(self.test_labels)
+        output_data=[train_labels_tensor, val_labels_tensor, test_labels_tensor]
+        max_len=max([x.squeeze().numel() for x in data])
+        output_data = [torch.nn.functional.pad(x, pad=(0, max_len - x.numel()), mode='constant', value=-1) for x in data]
+        output_data=torch.stack(data)
+        return output_data
 
 
     def plot_split_ner_distribution(self):
         # should plot a histogram displaying ner label counts for each split
+        ner_counts_train = sum([sum(y>0 for y in x) for x in zip(*self.train_labels)])
+        print ("ner_counts_train", ner_counts_train)
+        ner_counts_val = sum([sum(y>0 for y in x) for x in zip(*self.val_labels)])
+        print ("ner_counts_val", ner_counts_val)
+        ner_counts_test = sum([sum(y>0 for y in x) for x in zip(*self.test_labels)])
+        print ("ner_counts_test", ner_counts_test)
         
+        x=[ner_counts_train, ner_counts_val, ner_counts_test]
+        fig,ax = plt.subplots(1,1)
+        ax.set_title("NER label counts for each split")
+        ax.set_xlabel('Splits')
+        ax.set_ylabel('Counts')
+        plt.hist(x)
+        plt.show()
         pass
 
 
     def plot_sample_length_distribution(self):
         # FOR BONUS PART!!
         # Should plot a histogram displaying the distribution of sample lengths in number tokens
+        length_train = [len(x) for x in self.train_labels]
+        print ("length_train", length_train)
+        length_val = [len(x) for x in self.val_labels]
+        print ("ner_counts_val", ner_counts_val)
+        length_test = [len(x) for x in self.test_labels]
+        print ("length_test", length_test)
+        
+        x=length_train + length_val + length_test
+        fig,ax = plt.subplots(1,1)
+        ax.set_title("distribution of sample lengths")
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        plt.hist(x)
+        plt.show()
         pass
 
 
@@ -217,6 +280,23 @@ class DataLoader(DataLoaderBase):
         # FOR BONUS PART!!
         # Should plot a histogram displaying the distribution of number of NERs in sentences
         # e.g. how many sentences has 1 ner, 2 ner and so on
+        Ner_count_train = [sum(y>0 for y in x) for x in zip(*self.train_labels)]
+        print ("Ner_count_train", Ner_count_train)
+        Ner_count_val = [sum(y>0 for y in x) for x in zip(*self.val_labels)]
+        print ("Ner_count_val", Ner_count_val)
+        Ner_count_test = [sum(y>0 for y in x) for x in zip(*self.test_labels)]
+        print ("Ner_count_test", Ner_count_test) 
+        
+        x=Ner_count_train + Ner_count_val + Ner_count_test
+        counts,values = pd.Series(x).value_counts().values, pd.Series(x).value_counts().index
+        df_results = pd.DataFrame(list(zip(values,counts)),columns=["value","count"])
+        fig,ax = plt.subplots(1,1)
+        ax.set_title("distribution of number of NERs in sentences")
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        plt.hist(x)
+        plt.show()
+        pass
         pass
 
 
