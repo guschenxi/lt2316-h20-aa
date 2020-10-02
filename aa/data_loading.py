@@ -221,12 +221,11 @@ class DataLoader(DataLoaderBase):
         ner_counts_test = sum([sum(y>0 for y in x) for x in zip(*self.test_labels)])
 
         x=[ner_counts_train, ner_counts_val, ner_counts_test]
-        #print(x)
-        fig,ax = plt.subplots(1,1)
-        ax.set_title("NER label counts for each split")
-        ax.set_xlabel('Splits')
-        ax.set_ylabel('Counts')
-        plt.hist(x)
+        y=["Train","Validation","Test"]
+        plt.title("NER label counts for each split")
+        plt.xlabel('Splits')
+        plt.ylabel('Counts')
+        plt.bar(y,x,color='rgb',tick_label=y)
         plt.show()
         pass
 
@@ -240,9 +239,9 @@ class DataLoader(DataLoaderBase):
         
         x=length_train + length_val + length_test
         fig,ax = plt.subplots(1,1)
-        ax.set_title("distribution of sample lengths")
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
+        ax.set_title("Distribution of sample lengths")
+        ax.set_xlabel('Sample Lengths')
+        ax.set_ylabel('Counts')
         plt.hist(x)
         plt.show()
         pass
@@ -252,20 +251,18 @@ class DataLoader(DataLoaderBase):
         # FOR BONUS PART!!
         # Should plot a histogram displaying the distribution of number of NERs in sentences
         # e.g. how many sentences has 1 ner, 2 ner and so on
-        Ner_count_train = [sum(y>0 for y in x) for x in zip(*self.train_labels)]
-        Ner_count_val = [sum(y>0 for y in x) for x in zip(*self.val_labels)]
-        Ner_count_test = [sum(y>0 for y in x) for x in zip(*self.test_labels)]
+        Ner_count_train = [sum(y>0 for y in x) for x in self.train_labels]
+        Ner_count_val = [sum(y>0 for y in x) for x in self.val_labels]
+        Ner_count_test = [sum(y>0 for y in x) for x in self.test_labels]
         
         x = Ner_count_train + Ner_count_val + Ner_count_test
-        pd.Series(x).value_counts().hist()
         counts,values = pd.Series(x).value_counts().values, pd.Series(x).value_counts().index
-        df_results = pd.DataFrame(list(zip(values,counts)),columns=["value","count"])
-        fig,ax = plt.subplots(1,1)
-        ax.set_title("distribution of number of NERs in sentences")
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        #plt.hist(x)
-        #plt.show()
+        plt.figure(figsize=(15,5))
+        plt.title("Distribution of number of NERs in sentences")
+        plt.xlabel('Number of NERs in sentences')
+        plt.ylabel('Counts')
+        plt.bar(values,counts,tick_label=values)
+        plt.show()
         pass
 
 
