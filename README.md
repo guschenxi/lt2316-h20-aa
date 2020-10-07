@@ -21,6 +21,8 @@ Some entity names consists of more than one word -> split to two words
 Validation consists of 30% of Train:
 val_ids = np.random.choice(train_ids, size = int(len(train_ids) * 0.3))
 
+The code should be better structured in the future, i.e. divided into more small functions. However, I would like to know if I am on the right direction before continuing.
+
 
 ## Notes on Part 2.
 
