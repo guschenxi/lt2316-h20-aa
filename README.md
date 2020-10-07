@@ -2,6 +2,13 @@
 
 Name: Xi Chen
 
+Dear,
+  I didn't know that you have left a comment here already last week, until yesterday I saw a little red dot in front of "Omdöme". I thought I would get a notification when you reply, so I dared not change any code before yesterday.
+  After reading the instructions you added about feature extraction, I began to have more ideas about how everything should be. The added instructions were very useful.
+  So, yesterday evening and today, I made a lot changes in the code, and I have run the main file, and everything worked fine. However, I'm not sure if I have done everything in the right direction or everyting just happen to run without errors.
+  I understand that A1 is crucial for starting A2. So I think it's better you correct my assignment now, before I continue, in case everything I done was totally wrong.
+  Thanks for helping!
+/Xi Chen
 
 ## Notes on Part 1.
 
