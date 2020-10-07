@@ -7,6 +7,7 @@ import glob
 import xml.etree.ElementTree as et
 import numpy as np
 import matplotlib.pyplot as plt
+import string
 
 
 import os
@@ -95,7 +96,10 @@ class DataLoader(DataLoaderBase):
                 for senten in xroot:
                     sentence_id = senten.attrib.get("id")
                     sentence = senten.attrib.get("text")
-                    for token in sentence.lower().rstrip().split():
+                    for token in sentence.lower().strip().split():
+                        token=''.join((char for char in token if char not in string.punctuation)).strip()
+                        if token.strip() == "":
+                            continue
                         if token not in vocab:
                             vocab[token]=len(vocab)
                         token_id = vocab[token]
@@ -110,7 +114,7 @@ class DataLoader(DataLoaderBase):
                             if type_name in ner_dict: ner_id = ner_dict[type_name]
                             else: ner_id = 0
                             entity_name = node.attrib.get("text")
-                            if len(entity_name.split(" ")) == 1:
+                            if len(entity_name.split(" ")) == 1: #entity name consists of only one word
                                 ner_id = ner_dict[node.attrib.get("type")]
                                 if ';' in node.attrib.get("charOffset"): # Deal with special format in Train/DrugBank/Eszopiclone_ddi.xml
                                     charOffset = [entity_name.find(token), entity_name.find(token) + len(token)]
@@ -132,13 +136,6 @@ class DataLoader(DataLoaderBase):
         self.ner_df = pd.DataFrame(ner_df_rows, columns = ner_df_cols)
         
         
-        #divide VAL OLD
-        '''
-        train_index = self.data_df[self.data_df["split"] == "TRAIN"].index
-        val_index = np.random.choice(train_index, size = int(len(train_index) * 0.3))
-        for i in val_index:
-            self.data_df.at[i,"split"] = "VAL"
-        '''
             
         #divide VAL NEW
         train_set=self.data_df[self.data_df["split"]=="TRAIN"]
@@ -174,7 +171,7 @@ class DataLoader(DataLoaderBase):
                 if not is_ner:
                     label.append(0)
 
-              #Split NEW
+              #Split
             split=s_tokens['split'].unique().tolist()[0]
             if split == "TRAIN":
                 self.train_labels.append(label)
