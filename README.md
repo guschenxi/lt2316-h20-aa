@@ -18,6 +18,9 @@ val_ids = np.random.choice(train_ids, size = int(len(train_ids) * 0.3))
 ## Notes on Part 2.
 
 *fill in notes and documentation for part 2 as mentioned in the assignment description*
+
+Added argument: id2word=dataset.id2word
+
 I choose the following features:
 
 1. token_id, pre_token_id, next_token_id as word2vec
