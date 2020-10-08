@@ -105,7 +105,7 @@ class DataLoader(DataLoaderBase):
                         token_id = vocab[token]
                         char_start_id = sentence.lower().find(token)
                         data_df_rows.append({"sentence_id": sentence_id, "token_id": token_id, 
-                                    "char_start_id": char_start_id, "char_end_id": char_start_id+len(token),
+                                    "char_start_id": char_start_id, "char_end_id": char_start_id+len(token)-1,
                                     "split": path[0]})
 
                     for node in senten:
@@ -117,7 +117,7 @@ class DataLoader(DataLoaderBase):
                             if len(entity_name.split(" ")) == 1: #entity name consists of only one word
                                 ner_id = ner_dict[node.attrib.get("type")]
                                 if ';' in node.attrib.get("charOffset"): # Deal with special format in Train/DrugBank/Eszopiclone_ddi.xml
-                                    charOffset = [entity_name.find(token), entity_name.find(token) + len(token)]
+                                    charOffset = [entity_name.find(token), entity_name.find(token) + len(token)-1]
                                 else:
                                     charOffset = node.attrib.get("charOffset").split("-")
                                 ner_df_rows.append({"sentence_id": sentence_id, "ner_id": ner_id, 
